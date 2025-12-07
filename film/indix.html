@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+<meta charset="UTF-8">
+<title>Editor</title>
+<style>
+    body { background:#222; color:#fff; font-family:sans-serif; margin:0; display:flex; }
+    #tools {
+        width: 250px; background:#333; padding:15px; box-sizing:border-box;
+        display:flex; flex-direction:column; gap:10px; height:100vh; overflow:auto;
+    }
+    #canvasArea {
+        flex:1; position:relative; background:#111; overflow:hidden;
+    }
+    .item {
+        position:absolute; cursor:move; user-select:none;
+        transform-origin:center center;
+    }
+    img.item { max-width:100%; pointer-events:auto; }
+    .textItem {
+        font-size:40px; white-space:nowrap; color:white; text-shadow:0 0 5px black;
+    }
+    button { padding:8px; border:none; background:#555; color:white; cursor:pointer; border-radius:5px; }
+    button:hover { background:#666; }
+</style>
+
+<!-- مكتبة التقاط الصورة -->
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+
+</head>
+<body>
+
+<div id="tools">
+
+    <h3>إضافة صورة كبيرة</h3>
+    <input type="file" id="bigImgInput">
+
+    <h3>إضافة صورة فوقها</h3>
+    <input type="file" id="smallImgInput">
+
+    <h3>إضافة نص</h3>
+    <input type="text" id="textInput" placeholder="اكتب نص…">
+    <button onclick="addText()">إضافة النص</button>
+
+    <h3>حذف</h3>
+    <button onclick="deleteSelected()">مسح العنصر المُحدد</button>
+    <button onclick="clearAll()">مسح كل المشروع</button>
+
+    <h3>حفظ المشروع كصورة</h3>
+    <button onclick="saveAsImage()">تحميل الصورة</button>
+
+</div>
+
+<div id="canvasArea"></div>
+
+<script>
+let canvas = document.getElementById("canvasArea");
+let selected = null;
+let offsetX, offsetY;
+
+// ********** Load Saved **********
+window.onload = () => {
+    let saved = localStorage.getItem("project");
+    if (saved) canvas.innerHTML = saved;
+    rebindEvents();
+};
+
+// ********** Save **********
+function save() {
+    localStorage.setItem("project", canvas.innerHTML);
+}
+
+// ********** Add Big Image **********
+document.getElementById("bigImgInput").onchange = e => addImage(e, true);
+
+// ********** Add Small Image **********
+document.getElementById("smallImgInput").onchange = e => addImage(e, false);
+
+function addImage(e, isBig) {
+    let file = e.target.files[0];
+    let reader = new FileReader();
+    reader.onload = () => {
+        let img = document.createElement("img");
+        img.src = reader.result;
+        img.className = "item";
+        img.style.width = isBig ? "600px" : "150px";
+        img.style.top = "50px";
+        img.style.left = "50px";
+        makeInteractive(img);
+        canvas.appendChild(img);
+        save();
+    };
+    reader.readAsDataURL(file);
+}
+
+// ********** Add Text **********
+function addText() {
+    let txt = document.getElementById("textInput").value;
+    if (!txt) return;
+
+    let div = document.createElement("div");
+    div.className = "item textItem";
+    div.innerText = txt;
+    div.style.top = "100px";
+    div.style.left = "100px";
+    makeInteractive(div);
+    canvas.appendChild(div);
+    save();
+}
+
+// ********** Make Items Draggable & Scalable **********
+function makeInteractive(el) {
+    el.onmousedown = e => {
+        selected = el;
+        offsetX = e.offsetX;
+        offsetY = e.offsetY;
+    };
+
+    // Scroll = Resize
+    el.onwheel = e => {
+        e.preventDefault();
+        let scale = el.dataset.scale ? parseFloat(el.dataset.scale) : 1;
+        scale += (e.deltaY < 0 ? 0.05 : -0.05);
+        if (scale < 0.2) scale = 0.2;
+        el.style.transform = `scale(${scale}) rotate(${el.dataset.rotate || 0}deg)`;
+        el.dataset.scale = scale;
+        save();
+    };
+
+    // Right Click = Rotate
+    el.oncontextmenu = e => {
+        e.preventDefault();
+        let r = el.dataset.rotate ? parseFloat(el.dataset.rotate) : 0;
+        r += 10;
+        el.dataset.rotate = r;
+        el.style.transform = `scale(${el.dataset.scale || 1}) rotate(${r}deg)`;
+        save();
+    };
+}
+
+// ********** Dragging **********
+document.onmousemove = e => {
+    if (selected) {
+        selected.style.left = (e.pageX - offsetX) + "px";
+        selected.style.top = (e.pageY - offsetY) + "px";
+        save();
+    }
+};
+document.onmouseup = () => selected = null;
+
+// ********** Delete Selected **********
+function deleteSelected() {
+    if (selected) {
+        selected.remove();
+        selected = null;
+        save();
+    }
+}
+
+// ********** Clear All **********
+function clearAll() {
+    canvas.innerHTML = "";
+    save();
+}
+
+// ********** Rebind After Load **********
+function rebindEvents() {
+    document.querySelectorAll(".item").forEach(el => makeInteractive(el));
+}
+
+// ********** Save As Image **********
+function saveAsImage() {
+    html2canvas(document.getElementById("canvasArea")).then(canvas => {
+        let link = document.createElement("a");
+        link.download = "my_project.png";
+        link.href = canvas.toDataURL("image/png");
+        link.click();
+    });
+}
+</script>
+
+</body>
+</html>
